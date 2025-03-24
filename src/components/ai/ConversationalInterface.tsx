@@ -3,46 +3,15 @@ import React, { useState, useEffect } from 'react';
 import ChatInterface, { Message } from '../ui/ChatInterface';
 import { Card } from "@/components/ui/card";
 import { v4 as uuidv4 } from 'uuid';
-
-// Mock API response for demo purposes
-const mockResponses: Record<string, string> = {
-  'genai': `Here are some recommended GenAI courses under 1 hour:
-
-1. **Introduction to Generative AI** - 45 min
-   A beginner-friendly overview of generative AI concepts and applications.
-
-2. **Prompt Engineering Essentials** - 30 min
-   Learn how to craft effective prompts for large language models.
-
-3. **GenAI Tools Overview** - 55 min
-   A survey of popular generative AI tools and how to use them effectively.
-
-Would you like more information about any of these courses?`,
-
-  'devops': `Here are some recommended DevOps certifications:
-
-1. **AWS DevOps Engineer Professional**
-   Validates technical expertise in provisioning, operating, and managing distributed application systems on the AWS platform.
-
-2. **Google Professional DevOps Engineer**
-   Demonstrates your ability to implement continuous delivery pipelines and optimize service performance on Google Cloud.
-
-3. **Microsoft Azure DevOps Solutions**
-   Focuses on designing and implementing strategies for collaboration, code, infrastructure, and more on Azure.
-
-4. **Docker Certified Associate**
-   Validates your ability to configure, manage, and troubleshoot Docker containerized applications.
-
-Would you like details on prerequisites or exam content for any of these certifications?`,
-
-  'fallback': 'I can help you find learning resources, courses, or certification paths. Try asking about specific topics, skills, or time constraints you have.'
-};
+import { generateChatResponse, ChatMessage } from '../../services/openaiService';
+import { toast } from "sonner";
 
 const ConversationalInterface = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [apiKey, setApiKey] = useState('');
   
-  const handleSendMessage = (content: string) => {
+  const handleSendMessage = async (content: string) => {
     // Add user message
     const userMessage: Message = {
       id: uuidv4(),
@@ -54,16 +23,21 @@ const ConversationalInterface = () => {
     setMessages(prev => [...prev, userMessage]);
     setIsProcessing(true);
     
-    // Simulate API response
-    setTimeout(() => {
-      let responseContent = mockResponses.fallback;
+    try {
+      // Convert our messages to the format expected by OpenAI
+      const chatMessages: ChatMessage[] = [
+        {
+          role: "system",
+          content: "You are a helpful learning assistant that helps users find learning resources, courses, and certification paths tailored to their needs. Be concise and specific in your responses."
+        },
+        ...messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })) as ChatMessage[],
+        { role: "user", content }
+      ];
       
-      // Simple keyword matching for demo
-      if (content.toLowerCase().includes('genai') || (content.toLowerCase().includes('course') && content.toLowerCase().includes('1'))) {
-        responseContent = mockResponses.genai;
-      } else if (content.toLowerCase().includes('devops') && content.toLowerCase().includes('certification')) {
-        responseContent = mockResponses.devops;
-      }
+      const responseContent = await generateChatResponse(chatMessages);
       
       const botMessage: Message = {
         id: uuidv4(),
@@ -73,8 +47,12 @@ const ConversationalInterface = () => {
       };
       
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("Failed to get response from AI");
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+    }
   };
   
   const handleClearChat = () => {
